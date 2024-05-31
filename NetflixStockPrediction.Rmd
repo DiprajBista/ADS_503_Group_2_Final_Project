@@ -1,7 +1,6 @@
 
 ```{r}
 library(ggplot2)
-library(plotly)
 ```
 
 Import Data
