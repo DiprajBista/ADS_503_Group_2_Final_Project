@@ -1,0 +1,200 @@
+
+```{r}
+library(ggplot2)
+library(plotly)
+```
+
+Import Data
+```{r}
+# Import the dataset
+nflx_df <- read.csv("C:/Users/benog/OneDrive/Documents/Grad School/USD/ADS 503 Predictive Modeling/Datasets/NFLX.csv")
+
+# Add headers to the dataframe
+#names(glass_df) <- c("Id_number", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type_of_glass")
+
+head(nflx_df)
+```
+
+Find Null Values
+```{r}
+# Find number of null values for each attribute
+missing_data <- colSums(is.na(nflx_df))
+missing_data
+```
+
+Find Outliers
+```{r}
+# Use Tukey's method to find outliers
+find_outliers <- function(x) {
+  q <- quantile(x, probs=c(0.25, 0.75), na.rm=TRUE)
+  iqr <- IQR(x, na.rm=TRUE)
+  lower_bound <- q[1] - 1.5 * iqr
+  upper_bound <- q[2] + 1.5 * iqr
+  outliers <- x[x < lower_bound | x > upper_bound]
+  return(outliers)
+}
+
+# Exclude the Date column
+nflx_df_no_date <- nflx_df[, !names(nflx_df) %in% "Date"]
+
+# Find the outliers for each predictor variable
+outliers_list <- lapply(nflx_df_no_date, find_outliers)
+
+# Display the outliers
+names(outliers_list) <- names(nflx_df_no_date)
+outliers_list
+```
+
+```{r}
+# Use Tukey's method to find outliers and output to a dataframe
+get_outliers_df <- function(x, dates) {
+  q <- quantile(x, probs=c(0.25, 0.75), na.rm=TRUE)
+  iqr <- IQR(x, na.rm=TRUE)
+  lower_bound <- q[1] - 1.5 * iqr
+  upper_bound <- q[2] + 1.5 * iqr
+  outliers <- x[x < lower_bound | x > upper_bound]
+  outlier_dates <- dates[x < lower_bound | x > upper_bound]
+  return(data.frame(Value = outliers, Date = outlier_dates))
+}
+
+# Add the corresponding date to the outlier's value
+outliers_list <- lapply(nflx_df_no_date, get_outliers_df, dates = nflx_df$Date)
+
+# Combine outlier values and dates into a single dataframe
+outliers_df <- do.call(rbind, outliers_list)
+outliers_df
+```
+
+Create Box & Whisker Plots
+```{r}
+# Generate a distinct color for each variable
+set_colors <- function(index) {
+  colors <- c("lightgreen", "lightcoral", "lightpink", "lightyellow", "lightgrey", "lightblue")
+  colors[(index %% length(colors)) + 1]
+}
+
+# Create boxplots for each variable in nflx_df except Date
+boxplots <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Date") {
+    ggplot(nflx_df, aes_string(x = "factor(1)", y = var)) +
+      geom_boxplot(fill = set_colors(i), color = "black") +
+      labs(x = "", y = var) +
+      ggtitle(paste("Boxplot of", var))
+  }
+})
+
+# Remove NULL values from the list
+boxplots <- Filter(Negate(is.null), boxplots)
+
+# Print each boxplot
+for (plot in boxplots) {
+  print(plot)
+}
+```
+
+Create Histograms
+```{r}
+# Create histograms for each variable in nflx_df except Date
+histograms <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Date") {
+    ggplot(nflx_df, aes_string(x = var)) +
+      geom_histogram(bins = 20, fill = set_colors(i), color = "black") +
+      labs(x = var) +
+      ggtitle(paste("Histogram of", var))
+  }
+})
+
+# Remove NULL values from the list
+histograms <- Filter(Negate(is.null), histograms)
+
+# Print each histogram
+for (plot in histograms) {
+  print(plot)
+}
+```
+
+Create Scatterplots
+```{r}
+# Generate a distinct color for each variable
+set_color_scatter <- function(index) {
+  colors <- c("skyblue", "lightcoral", "lightpink", "lightyellow", "lightgrey", "lightblue")
+  colors[(index %% length(colors)) + 1]
+}
+
+# Create scatterplots for each variable in nflx_df showing the relationship with Adj. Close
+scatterplots <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Adj.Close") {
+    ggplot(nflx_df, aes_string(x = var, y = "Adj.Close")) +
+      geom_point(color = set_color_scatter(i)) +
+      labs(x = var, y = "Adj.Close") +
+      ggtitle(paste("Scatterplot of", var, "vs. Adj. Close"))
+  }
+})
+
+# Remove NULL values from the list
+scatterplots <- Filter(Negate(is.null), scatterplots)
+
+# Print each scatterplot
+for (plot in scatterplots) {
+  print(plot)
+}
+```
+
+TODO: Not sure if using log transformations or any transformations is good for stock market data. This could lead to distorting true values and predictions since there are actual open, high, low, etc. numbers that represent an actual price or volume in time.
+```{r}
+# Create a copy of nflx_df
+nflx_df_log <- nflx_df
+
+# Exclude the "Date" and "Adj.Price" columns
+cols_to_transform <- names(nflx_df_log)[!(names(nflx_df_log) %in% c("Date", "Adj.Price"))]
+
+# Apply log transformation to numeric columns
+for(col in cols_to_transform) {
+  if(is.numeric(nflx_df_log[[col]])) {
+    nflx_df_log[[col]] <- log(nflx_df_log[[col]])
+  }
+}
+
+# Print the head of the transformed dataframe
+print(head(nflx_df_log))
+
+```
+
+Create Histograms Using Normalized Data
+```{r}
+# Create histograms for each variable in nflx_df except Date
+histograms <- lapply(seq_along(names(nflx_df_log)), function(i) {
+  var <- names(nflx_df_log)[i]
+  if (var != "Date" && var != "Adj.Close") {
+    ggplot(nflx_df_log, aes_string(x = var)) +
+      geom_histogram(bins = 20, fill = set_colors(i), color = "black") +
+      labs(x = var) +
+      ggtitle(paste("Histogram of", var))
+  }
+})
+
+# Remove NULL values from the list
+histograms <- Filter(Negate(is.null), histograms)
+
+# Print each histogram
+for (plot in histograms) {
+  print(plot)
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
