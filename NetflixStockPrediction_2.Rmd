@@ -1,0 +1,222 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(ggplot2)
+```
+
+Import Data
+```{r}
+# Import the dataset
+```
+
+```{r}
+## TRANING AND TESTING DATA
+```
+
+```{r}
+library(caret) # For data splitting and preprocessing
+library(dplyr) # For data manipulation
+
+# Load the dataset
+nflx_df <- read.csv("NFLX.csv")
+
+# Convert 'Date' column to datetime format
+nflx_df$Date <- as.Date(nflx_df$Date)
+
+# Extract year, month, and day from the 'Date' column
+nflx_df <- nflx_df %>%
+  mutate(Year = year(Date),
+         Month = month(Date),
+         Day = day(Date)) %>%
+  select(-Date)
+
+# Display the first few rows of the dataset
+head(nflx_df)
+
+# Check for missing values
+sum(is.na(nflx_df))
+
+nflx_df <- na.omit(nflx_df)
+
+
+# Normalize/scale the data 
+# Using the caret package to center and scale the data
+preprocess_params <- preProcess(nflx_df, method = c("center", "scale"))
+nflx_df_normalized <- predict(preprocess_params, nflx_df)
+
+# Verify the target variable
+target_variable <- 'Close'  
+
+if (!(target_variable %in% names(nflx_df_normalized))) {
+  stop("The specified target variable does not exist in the dataset")
+}
+
+# Split the data into training and testing sets
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(nflx_df_normalized[[target_variable]], p = 0.8, list = FALSE)
+nflx_train <- nflx_df_normalized[trainIndex, ]
+nflx_test <- nflx_df_normalized[-trainIndex, ]
+
+# Verify the split
+dim(nflx_train)
+dim(nflx_test)
+
+```
+
+```{r}
+library(e1071)  # For SVM
+library(caret)  # For confusionMatrix and other utilities
+
+# Train the SVM model
+svm_model <- svm(Close ~ ., data = nflx_train)
+
+# Make predictions on the test set
+svm_predictions <- predict(svm_model, nflx_test)
+
+# Evaluate the model
+svm_results <- postResample(pred = svm_predictions, obs = nflx_test$Close)
+print(svm_results)
+```
+```{r}
+library(e1071)  # For SVM
+library(randomForest)  # For Random Forest
+library(rpart)  # For Decision Trees
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+
+
+# 1. SVM Model
+svm_model <- svm(Close ~ ., data = nflx_train)
+svm_predictions <- predict(svm_model, nflx_test)
+svm_results <- postResample(pred = svm_predictions, obs = nflx_test$Close)
+print(svm_results)
+
+# 2. Linear Regression Model
+lm_model <- train(Close ~ ., data = nflx_train, method = "lm")
+lm_predictions <- predict(lm_model, nflx_test)
+lm_results <- postResample(pred = lm_predictions, obs = nflx_test$Close)
+print(lm_results)
+
+# 3. Decision Tree Model
+dt_model <- rpart(Close ~ ., data = nflx_train, method = "anova")
+dt_predictions <- predict(dt_model, nflx_test)
+dt_results <- postResample(pred = dt_predictions, obs = nflx_test$Close)
+print(dt_results)
+
+# 4. Random Forest Model
+rf_model <- randomForest(Close ~ ., data = nflx_train)
+rf_predictions <- predict(rf_model, nflx_test)
+rf_results <- postResample(pred = rf_predictions, obs = nflx_test$Close)
+print(rf_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("SVM", "Linear Regression", "Decision Tree", "Random Forest"),
+  RMSE = c(svm_results["RMSE"], lm_results["RMSE"], dt_results["RMSE"], rf_results["RMSE"]),
+  Rsquared = c(svm_results["Rsquared"], lm_results["Rsquared"], dt_results["Rsquared"], rf_results["Rsquared"]),
+  MAE = c(svm_results["MAE"], lm_results["MAE"], dt_results["MAE"], rf_results["MAE"])
+)
+
+print(results)
+```
+
+# linear models
+
+```{r}
+library(pls)  # For PCR and PLS
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+library(e1071)  # For SVM, already installed previously
+
+# 1. OLS Model
+ols_model <- lm(Close ~ ., data = nflx_train)
+ols_predictions <- predict(ols_model, nflx_test)
+ols_results <- postResample(pred = ols_predictions, obs = nflx_test$Close)
+print(ols_results)
+
+# 2. PCR Model
+pcr_model <- pcr(Close ~ ., data = nflx_train, scale = TRUE, validation = "CV")
+pcr_predictions <- predict(pcr_model, nflx_test, ncomp = pcr_model$ncomp)
+pcr_results <- postResample(pred = pcr_predictions, obs = nflx_test$Close)
+print(pcr_results)
+
+# 3. PLS Model
+pls_model <- plsr(Close ~ ., data = nflx_train, scale = TRUE, validation = "CV")
+pls_predictions <- predict(pls_model, nflx_test, ncomp = pls_model$ncomp)
+pls_results <- postResample(pred = pls_predictions, obs = nflx_test$Close)
+print(pls_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("OLS", "PCR", "PLS"),
+  RMSE = c(ols_results["RMSE"], pcr_results["RMSE"], pls_results["RMSE"]),
+  Rsquared = c(ols_results["Rsquared"], pcr_results["Rsquared"], pls_results["Rsquared"]),
+  MAE = c(ols_results["MAE"], pcr_results["MAE"], pls_results["MAE"])
+)
+
+print(results)
+```
+
+# Penalized linear model
+
+```{r}
+library(glmnet)  # For Lasso, Ridge, and Elastic Net
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+
+# 1. Lasso Regression Model
+lasso_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-4, 1, length = 100)))
+lasso_predictions <- predict(lasso_model, nflx_test)
+lasso_results <- postResample(pred = lasso_predictions, obs = nflx_test$Close)
+print(lasso_results)
+
+# 2. Ridge Regression Model
+ridge_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 0, lambda = 10^seq(-4, 1, length = 100)))
+ridge_predictions <- predict(ridge_model, nflx_test)
+ridge_results <- postResample(pred = ridge_predictions, obs = nflx_test$Close)
+print(ridge_results)
+
+# 3. Elastic Net Regression Model
+elastic_net_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                           tuneGrid = expand.grid(alpha = seq(0, 1, length = 10), lambda = 10^seq(-4, 1, length = 100)))
+elastic_net_predictions <- predict(elastic_net_model, nflx_test)
+elastic_net_results <- postResample(pred = elastic_net_predictions, obs = nflx_test$Close)
+print(elastic_net_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("Lasso", "Ridge", "Elastic Net"),
+  RMSE = c(lasso_results["RMSE"], ridge_results["RMSE"], elastic_net_results["RMSE"]),
+  Rsquared = c(lasso_results["Rsquared"], ridge_results["Rsquared"], elastic_net_results["Rsquared"]),
+  MAE = c(lasso_results["MAE"], ridge_results["MAE"], elastic_net_results["MAE"])
+)
+
+print(results)
+```
+
+
+# non linear regression
+
+```{r}
+# Split the data into training and testing sets
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(nflx_df_normalized[[target_variable]], p = 0.8, list = FALSE)
+nflx_train <- nflx_df_normalized[trainIndex, ]
+nflx_test <- nflx_df_normalized[-trainIndex, ]
+
+# Separate predictors and response variables
+x_train <- nflx_train %>% select(-one_of(target_variable))
+y_train <- nflx_train[[target_variable]]
+x_test <- nflx_test %>% select(-one_of(target_variable))
+y_test <- nflx_test[[target_variable]]
+```
+
+
+
+
