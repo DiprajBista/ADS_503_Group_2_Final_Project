@@ -1,0 +1,548 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(ggplot2)
+```
+
+Import Data
+```{r}
+# Import the dataset
+nflx_df <- read.csv("/Users/gabrielmancillas/Desktop/503-01 /Final/NFLX.csv")
+
+# Add headers to the dataframe
+#names(glass_df) <- c("Id_number", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type_of_glass")
+
+head(nflx_df)
+```
+
+Find Null Values
+```{r}
+# Find number of null values for each attribute
+missing_data <- colSums(is.na(nflx_df))
+missing_data
+```
+
+Find Outliers
+```{r}
+# Use Tukey's method to find outliers
+find_outliers <- function(x) {
+  q <- quantile(x, probs=c(0.25, 0.75), na.rm=TRUE)
+  iqr <- IQR(x, na.rm=TRUE)
+  lower_bound <- q[1] - 1.5 * iqr
+  upper_bound <- q[2] + 1.5 * iqr
+  outliers <- x[x < lower_bound | x > upper_bound]
+  return(outliers)
+}
+
+# Exclude the Date column
+nflx_df_no_date <- nflx_df[, !names(nflx_df) %in% "Date"]
+
+# Find the outliers for each predictor variable
+outliers_list <- lapply(nflx_df_no_date, find_outliers)
+
+# Display the outliers
+names(outliers_list) <- names(nflx_df_no_date)
+outliers_list
+```
+
+```{r}
+# Use Tukey's method to find outliers and output to a dataframe
+get_outliers_df <- function(x, dates) {
+  q <- quantile(x, probs=c(0.25, 0.75), na.rm=TRUE)
+  iqr <- IQR(x, na.rm=TRUE)
+  lower_bound <- q[1] - 1.5 * iqr
+  upper_bound <- q[2] + 1.5 * iqr
+  outliers <- x[x < lower_bound | x > upper_bound]
+  outlier_dates <- dates[x < lower_bound | x > upper_bound]
+  return(data.frame(Value = outliers, Date = outlier_dates))
+}
+
+# Add the corresponding date to the outlier's value
+outliers_list <- lapply(nflx_df_no_date, get_outliers_df, dates = nflx_df$Date)
+
+# Combine outlier values and dates into a single dataframe
+outliers_df <- do.call(rbind, outliers_list)
+outliers_df
+```
+
+Create Box & Whisker Plots
+```{r}
+# Generate a distinct color for each variable
+set_colors <- function(index) {
+  colors <- c("lightgreen", "lightcoral", "lightpink", "lightyellow", "lightgrey", "lightblue")
+  colors[(index %% length(colors)) + 1]
+}
+
+# Create boxplots for each variable in nflx_df except Date
+boxplots <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Date") {
+    ggplot(nflx_df, aes_string(x = "factor(1)", y = var)) +
+      geom_boxplot(fill = set_colors(i), color = "black") +
+      labs(x = "", y = var) +
+      ggtitle(paste("Boxplot of", var))
+  }
+})
+
+# Remove NULL values from the list
+boxplots <- Filter(Negate(is.null), boxplots)
+
+# Print each boxplot
+for (plot in boxplots) {
+  print(plot)
+}
+```
+
+Create Histograms
+```{r}
+# Create histograms for each variable in nflx_df except Date
+histograms <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Date") {
+    ggplot(nflx_df, aes_string(x = var)) +
+      geom_histogram(bins = 20, fill = set_colors(i), color = "black") +
+      labs(x = var) +
+      ggtitle(paste("Histogram of", var))
+  }
+})
+
+# Remove NULL values from the list
+histograms <- Filter(Negate(is.null), histograms)
+
+# Print each histogram
+for (plot in histograms) {
+  print(plot)
+}
+```
+
+Create Scatterplots
+```{r}
+# Generate a distinct color for each variable
+set_color_scatter <- function(index) {
+  colors <- c("skyblue", "lightcoral", "lightpink", "lightyellow", "lightgrey", "lightblue")
+  colors[(index %% length(colors)) + 1]
+}
+
+# Create scatterplots for each variable in nflx_df showing the relationship with Adj. Close
+scatterplots <- lapply(seq_along(names(nflx_df)), function(i) {
+  var <- names(nflx_df)[i]
+  if (var != "Adj.Close") {
+    ggplot(nflx_df, aes_string(x = var, y = "Adj.Close")) +
+      geom_point(color = set_color_scatter(i)) +
+      labs(x = var, y = "Adj.Close") +
+      ggtitle(paste("Scatterplot of", var, "vs. Adj. Close"))
+  }
+})
+
+# Remove NULL values from the list
+scatterplots <- Filter(Negate(is.null), scatterplots)
+
+# Print each scatterplot
+for (plot in scatterplots) {
+  print(plot)
+}
+```
+
+TODO: Not sure if using log transformations or any transformations is good for stock market data. This could lead to distorting true values and predictions since there are actual open, high, low, etc. numbers that represent an actual price or volume in time.
+```{r}
+# Create a copy of nflx_df
+nflx_df_log <- nflx_df
+
+# Exclude the "Date" and "Adj.Price" columns
+cols_to_transform <- names(nflx_df_log)[!(names(nflx_df_log) %in% c("Date", "Adj.Price"))]
+
+# Apply log transformation to numeric columns
+for(col in cols_to_transform) {
+  if(is.numeric(nflx_df_log[[col]])) {
+    nflx_df_log[[col]] <- log(nflx_df_log[[col]])
+  }
+}
+
+# Print the head of the transformed dataframe
+print(head(nflx_df_log))
+
+```
+
+Create Histograms Using Normalized Data
+```{r}
+# Create histograms for each variable in nflx_df except Date
+histograms <- lapply(seq_along(names(nflx_df_log)), function(i) {
+  var <- names(nflx_df_log)[i]
+  if (var != "Date" && var != "Adj.Close") {
+    ggplot(nflx_df_log, aes_string(x = var)) +
+      geom_histogram(bins = 20, fill = set_colors(i), color = "black") +
+      labs(x = var) +
+      ggtitle(paste("Histogram of", var))
+  }
+})
+
+# Remove NULL values from the list
+histograms <- Filter(Negate(is.null), histograms)
+
+# Print each histogram
+for (plot in histograms) {
+  print(plot)
+}
+```
+
+--------------------------------------------
+```{r}
+library(ggplot2)
+```
+```{r}
+# Import the dataset
+```
+
+```{r}
+## TRANING AND TESTING DATA
+```
+
+```{r}
+library(caret) # For data splitting and preprocessing
+library(dplyr) # For data manipulation
+library(lubridate) # For date manipulation
+
+# Convert 'Date' column to datetime format
+nflx_df$Date <- as.Date(nflx_df$Date)
+
+# Assuming your data is already loaded into a data frame called nflx_df
+nflx_df <- nflx_df %>%
+  mutate(
+    Year = year(Date),
+    Month = month(Date),
+    Day = day(Date)
+  ) %>%
+  select(-Date)
+
+# Display the first few rows of the dataset
+head(nflx_df)
+
+# Check for missing values
+sum(is.na(nflx_df))
+
+nflx_df <- na.omit(nflx_df)
+```
+
+```{r}
+
+# Normalize/scale the data 
+# Using the caret package to center and scale the data
+preprocess_params <- preProcess(nflx_df, method = c("center", "scale"))
+nflx_df_normalized <- predict(preprocess_params, nflx_df)
+
+# Verify the target variable
+target_variable <- 'Close'  
+
+if (!(target_variable %in% names(nflx_df_normalized))) {
+  stop("The specified target variable does not exist in the dataset")
+}
+
+# Split the data into training and testing sets
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(nflx_df_normalized[[target_variable]], p = 0.8, list = FALSE)
+nflx_train <- nflx_df_normalized[trainIndex, ]
+nflx_test <- nflx_df_normalized[-trainIndex, ]
+
+# Verify the split
+dim(nflx_train)
+dim(nflx_test)
+
+```
+
+```{r}
+library(e1071)  # For SVM
+library(caret)  # For confusionMatrix and other utilities
+
+# Train the SVM model
+svm_model <- svm(Close ~ ., data = nflx_train)
+
+# Make predictions on the test set
+svm_predictions <- predict(svm_model, nflx_test)
+
+# Evaluate the model
+svm_results <- postResample(pred = svm_predictions, obs = nflx_test$Close)
+print(svm_results)
+```
+```{r}
+library(e1071)  # For SVM
+library(randomForest)  # For Random Forest
+library(rpart)  # For Decision Trees
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+
+
+# 1. SVM Model
+svm_model <- svm(Close ~ ., data = nflx_train)
+svm_predictions <- predict(svm_model, nflx_test)
+svm_results <- postResample(pred = svm_predictions, obs = nflx_test$Close)
+print(svm_results)
+
+# 2. Linear Regression Model
+lm_model <- train(Close ~ ., data = nflx_train, method = "lm")
+lm_predictions <- predict(lm_model, nflx_test)
+lm_results <- postResample(pred = lm_predictions, obs = nflx_test$Close)
+print(lm_results)
+
+# 3. Decision Tree Model
+dt_model <- rpart(Close ~ ., data = nflx_train, method = "anova")
+dt_predictions <- predict(dt_model, nflx_test)
+dt_results <- postResample(pred = dt_predictions, obs = nflx_test$Close)
+print(dt_results)
+
+# 4. Random Forest Model
+rf_model <- randomForest(Close ~ ., data = nflx_train)
+rf_predictions <- predict(rf_model, nflx_test)
+rf_results <- postResample(pred = rf_predictions, obs = nflx_test$Close)
+print(rf_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("SVM", "Linear Regression", "Decision Tree", "Random Forest"),
+  RMSE = c(svm_results["RMSE"], lm_results["RMSE"], dt_results["RMSE"], rf_results["RMSE"]),
+  Rsquared = c(svm_results["Rsquared"], lm_results["Rsquared"], dt_results["Rsquared"], rf_results["Rsquared"]),
+  MAE = c(svm_results["MAE"], lm_results["MAE"], dt_results["MAE"], rf_results["MAE"])
+)
+
+print(results)
+```
+
+# linear models
+
+```{r}
+library(pls)  # For PCR and PLS
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+library(e1071)  # For SVM, already installed previously
+
+# 1. OLS Model
+ols_model <- lm(Close ~ ., data = nflx_train)
+ols_predictions <- predict(ols_model, nflx_test)
+ols_results <- postResample(pred = ols_predictions, obs = nflx_test$Close)
+print(ols_results)
+
+# 2. PCR Model
+pcr_model <- pcr(Close ~ ., data = nflx_train, scale = TRUE, validation = "CV")
+pcr_predictions <- predict(pcr_model, nflx_test, ncomp = pcr_model$ncomp)
+pcr_results <- postResample(pred = pcr_predictions, obs = nflx_test$Close)
+print(pcr_results)
+
+# 3. PLS Model
+pls_model <- plsr(Close ~ ., data = nflx_train, scale = TRUE, validation = "CV")
+pls_predictions <- predict(pls_model, nflx_test, ncomp = pls_model$ncomp)
+pls_results <- postResample(pred = pls_predictions, obs = nflx_test$Close)
+print(pls_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("OLS", "PCR", "PLS"),
+  RMSE = c(ols_results["RMSE"], pcr_results["RMSE"], pls_results["RMSE"]),
+  Rsquared = c(ols_results["Rsquared"], pcr_results["Rsquared"], pls_results["Rsquared"]),
+  MAE = c(ols_results["MAE"], pcr_results["MAE"], pls_results["MAE"])
+)
+
+print(results)
+```
+
+# Penalized linear model
+
+```{r}
+library(glmnet)  # For Lasso, Ridge, and Elastic Net
+library(caret)  # For data preprocessing and evaluation
+library(dplyr)  # For data manipulation
+
+# 1. Lasso Regression Model
+lasso_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-4, 1, length = 100)))
+lasso_predictions <- predict(lasso_model, nflx_test)
+lasso_results <- postResample(pred = lasso_predictions, obs = nflx_test$Close)
+print(lasso_results)
+
+# 2. Ridge Regression Model
+ridge_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 0, lambda = 10^seq(-4, 1, length = 100)))
+ridge_predictions <- predict(ridge_model, nflx_test)
+ridge_results <- postResample(pred = ridge_predictions, obs = nflx_test$Close)
+print(ridge_results)
+
+# 3. Elastic Net Regression Model
+elastic_net_model <- train(Close ~ ., data = nflx_train, method = "glmnet",
+                           tuneGrid = expand.grid(alpha = seq(0, 1, length = 10), lambda = 10^seq(-4, 1, length = 100)))
+elastic_net_predictions <- predict(elastic_net_model, nflx_test)
+elastic_net_results <- postResample(pred = elastic_net_predictions, obs = nflx_test$Close)
+print(elastic_net_results)
+
+# Compare the results
+results <- data.frame(
+  Model = c("Lasso", "Ridge", "Elastic Net"),
+  RMSE = c(lasso_results["RMSE"], ridge_results["RMSE"], elastic_net_results["RMSE"]),
+  Rsquared = c(lasso_results["Rsquared"], ridge_results["Rsquared"], elastic_net_results["Rsquared"]),
+  MAE = c(lasso_results["MAE"], ridge_results["MAE"], elastic_net_results["MAE"])
+)
+
+print(results)
+```
+
+
+# Non linear regression
+
+```{r}
+# Split the data into training and testing sets
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(nflx_df_normalized[[target_variable]], p = 0.8, list = FALSE)
+nflx_train <- nflx_df_normalized[trainIndex, ]
+nflx_test <- nflx_df_normalized[-trainIndex, ]
+
+# Separate predictors and response variables
+x_train <- nflx_train %>% select(-one_of(target_variable))
+y_train <- nflx_train[[target_variable]]
+x_test <- nflx_test %>% select(-one_of(target_variable))
+y_test <- nflx_test[[target_variable]]
+```
+
+--------------------------------------------
+```{r}
+library(caret)
+library(dplyr)
+library(plyr)
+library(Hmisc)
+library(zoo) # for rollmean and rollapply functions
+```
+
+```{r}
+# Load the dataset
+# Load the dataset
+file_path <- '/Users/gabrielmancillas/Desktop/503-01 /Final/NFLX.csv'
+nflx_df <- read.csv(file_path)
+# Convert Date column to Date type and set it as index
+# Check the structure of the data
+str(nflx_df)
+```
+```{r}
+# Convert Date column to Date type and handle any potential conversion issues
+nflx_df$Date <- as.Date(nflx_df$Date, format = "%Y-%m-%d")
+if (any(is.na(nflx_df$Date))) {
+  stop("Date conversion resulted in NA values. Check the format of the Date column.")
+}
+```
+```{r}
+# Sort the dataframe by Date
+nflx_df <- nflx_df %>% arrange(Date)
+
+# Feature engineering
+nflx_df <- nflx_df %>%
+  mutate(Lag_1 = lag(Close, 1),
+         Lag_7 = lag(Close, 7),
+         Lag_30 = lag(Close, 30),
+         Rolling_Mean_7 = rollmean(Close, 7, fill = NA),
+         Rolling_Std_7 = rollapply(Close, 7, sd, fill = NA)) %>%
+  na.omit()
+
+# Check the structure after feature engineering
+str(nflx_df)
+
+# Define features and target
+X <- nflx_df %>% select(-Close, -Date)
+y <- nflx_df$Close
+
+# Split the data into training and test sets
+set.seed(975)
+training_indices <- createDataPartition(y, p = 0.75, list = FALSE)
+training_set <- nflx_df[training_indices, ]
+test_set <- nflx_df[-training_indices, ]
+
+# Standardize the data
+pre_proc <- preProcess(training_set %>% select(-Close, -Date), method = c("center", "scale"))
+training_set_scaled <- predict(pre_proc, training_set %>% select(-Close, -Date))
+test_set_scaled <- predict(pre_proc, test_set %>% select(-Close, -Date))
+
+# Add the target variable back to the scaled data
+training_set_scaled$Close <- training_set$Close
+test_set_scaled$Close <- test_set$Close
+
+# Check the final structure of the training and test sets
+str(training_set_scaled)
+str(test_set_scaled)
+```
+
+MODEL TRAINING AND EVALUATION
+```{r}
+# Define trainControl
+control_object <- trainControl(method = "repeatedcv", number = 10, repeats = 5)
+
+# Define model formula
+mod_formula <- as.formula("Close ~ .")
+
+# Train Linear Regression Model
+set.seed(669)
+lm_model <- train(mod_formula, data = training_set_scaled, method = "lm", trControl = control_object)
+print(lm_model)
+
+# Train PLS Model
+set.seed(669)
+pls_model <- train(mod_formula, data = training_set_scaled, method = "pls", preProc = c("center", "scale"), tuneLength = 15, trControl = control_object)
+print(pls_model)
+
+# Train Elastic Net Model
+enet_grid <- expand.grid(.lambda = c(0, .001, .01, .1), .fraction = seq(0.05, 1, length = 20))
+set.seed(669)
+enet_model <- train(mod_formula, data = training_set_scaled, method = "enet", preProc = c("center", "scale"), tuneGrid = enet_grid, trControl = control_object)
+print(enet_model)
+```
+
+```{r}
+install.packages("gbm", repo = "https://cran.r-project.org")
+
+library(gbm)  # For Gradient Boosting Machines
+```
+
+HYPERPARAMETER TUNING
+```{r}
+# Define parameter grid for GBM model
+gbm_grid <- expand.grid(.n.trees = seq(100, 1000, by = 50), 
+                        .interaction.depth = seq(1, 7, by = 2), 
+                        .shrinkage = c(0.01, 0.1), 
+                        .n.minobsinnode = 10)
+
+# Train GBM Model
+set.seed(669)
+gbm_model <- train(mod_formula, data = training_set_scaled, method = "gbm", tuneGrid = gbm_grid, verbose = FALSE, trControl = control_object)
+print(gbm_model)
+
+# Define a function to evaluate model performance
+evaluate_model <- function(model, test_data) {
+  predictions <- predict(model, test_data)
+  mse <- mean((test_data$Close - predictions)^2)
+  mae <- mean(abs(test_data$Close - predictions))
+  r2 <- 1 - sum((test_data$Close - predictions)^2) / sum((test_data$Close - mean(test_data$Close))^2)
+  return(list(MSE = mse, MAE = mae, R2 = r2))
+}
+
+# Evaluate models
+lm_eval <- evaluate_model(lm_model, test_set_scaled)
+pls_eval <- evaluate_model(pls_model, test_set_scaled)
+enet_eval <- evaluate_model(enet_model, test_set_scaled)
+gbm_eval <- evaluate_model(gbm_model, test_set_scaled)
+
+# Print evaluation metrics
+print(lm_eval)
+print(pls_eval)
+print(enet_eval)
+print(gbm_eval)
+```
+
+MODEL COMPARISON AND SELECTION
+```{r}
+# Compare resampling results
+resamples_list <- resamples(list("Linear Reg" = lm_model, "PLS" = pls_model, "Elastic Net" = enet_model, "GBM" = gbm_model))
+summary(resamples_list)
+
+# Visualize model performance
+parallelplot(resamples_list)
+
+# Save the best model (assumed to be the GBM model based on evaluation)
+saveRDS(gbm_model, "best_stock_prediction_model.rds")
+``` 
