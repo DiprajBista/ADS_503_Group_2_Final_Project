@@ -19,9 +19,14 @@ library(rpart)
 library(pls)
 library(glmnet)
 library(gbm)
+library(corrplot)
+library(tidyverse)
+library(TTR)
+```
 
+```{r}
 # Import the dataset
-nflx_df <- read.csv("/Users/gabrielmancillas/Desktop/503-01 /Final/NFLX.csv")
+nflx_df <- read.csv("C:/Users/benog/OneDrive/Documents/Grad School/USD/ADS 503 Predictive Modeling/Datasets/NFLX.csv")
 
 # Display the first few rows of the dataset
 head(nflx_df)
@@ -45,7 +50,7 @@ find_outliers <- function(x) {
   return(outliers)
 }
 
-# Exclude the Date column for outlier detection
+# Exclude the Date column from outlier detection
 nflx_df_no_date <- nflx_df[, !names(nflx_df) %in% "Date"]
 
 # Find the outliers for each predictor variable
@@ -123,6 +128,56 @@ for (plot in scatterplots) {
 ```
 
 ```{r}
+# Convert the Date column to a Date data type
+nflx_df <- nflx_df %>%
+  mutate(Date = as.Date(Date))
+
+# Calculate a 21 day moving average
+# There are about 21 trading days per month
+nflx_df <- nflx_df %>%
+  arrange(Date) %>%
+  mutate(MA_21 = SMA(Adj.Close, n = 21))
+
+# Show the moving average
+ggplot(nflx_df, aes(x = Date)) +
+  geom_line(aes(y = Adj.Close, color = "Adjusted Close"), size = 0.5) +
+  geom_line(aes(y = MA_21, color = "21 Day Moving Average"), size = 1) +
+  scale_color_manual(values = c("Adjusted Close" = "blue", "21 Day Moving Average" = "red")) +
+  labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average",
+       x = "Date",
+       y = "Price",
+       color = "Legend",
+       caption = "Data source: nflx_df") +
+  theme_minimal()
+```
+
+```{r}
+# Aggregate the volume data by week
+nflx_weekly <- nflx_df %>%
+  mutate(Week = floor_date(Date, "week")) %>%
+  group_by(Week) %>%
+  summarize(Weekly_Volume = sum(Volume), Adj.Close = last(Adj.Close))
+
+# Create a combination plot with candlestick chart and volume bars
+ggplot(nflx_df, aes(x = Date)) +
+  geom_line(aes(y = Adj.Close, color = "Adjusted Close"), size = 0.5) +
+  geom_line(aes(y = MA_21, color = "21 Day Moving Average"), size = 1) +
+  geom_bar(data = nflx_weekly, aes(x = Week, y = Weekly_Volume / 1000000, fill = "Weekly Volume"), 
+           stat = "identity", alpha = 0.4, position = "identity") +
+  scale_color_manual(values = c("Adjusted Close" = "blue", "21 Day Moving Average" = "red", "Volume" = "green")) +
+  scale_fill_manual(values = c("Weekly Volume" = "orange")) +
+  labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average and Volume",
+       x = "Date",
+       y = "Price",
+       fill = "Volume (in millions)",
+       color = "Legend",
+       caption = "Data source: nflx_df") +
+  theme_minimal() +
+  scale_y_continuous(sec.axis = sec_axis(~.*1000000, name = "Volume"))
+```
+
+
+```{r}
 # Feature engineering: Extract Year, Month, Day from Date
 nflx_df$Date <- as.Date(nflx_df$Date)
 
@@ -137,6 +192,18 @@ nflx_df <- nflx_df %>%
 # Display the first few rows of the dataset
 head(nflx_df)
 ```
+
+```{r}
+# Calculate the correlation matrix
+cor_matrix <- cor(nflx_df, use = "complete.obs")
+
+# Generate a heatmap using corrplot
+corrplot(cor_matrix, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45, 
+         addCoef.col = "black", number.cex = 0.7,
+         col = colorRampPalette(c("blue", "white", "red"))(200))
+```
+
 
 ```{r}
 # Normalize/scale the data
