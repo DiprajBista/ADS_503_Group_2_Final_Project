@@ -22,6 +22,8 @@ library(gbm)
 library(corrplot)
 library(tidyverse)
 library(TTR)
+library(quantmod)
+library(car)
 ```
 
 ```{r}
@@ -30,7 +32,9 @@ nflx_df <- read.csv("C:/Users/benog/OneDrive/Documents/Grad School/USD/ADS 503 P
 
 # Display the first few rows of the dataset
 head(nflx_df)
+```
 
+```{r}
 # Check for missing values
 missing_data <- colSums(is.na(nflx_df))
 print(missing_data)
@@ -38,6 +42,7 @@ print(missing_data)
 # Remove rows with missing values
 nflx_df <- na.omit(nflx_df)
 ```
+
 
 ```{r}
 # Function to find outliers using Tukey's method
@@ -62,24 +67,40 @@ outliers_list
 ```
 
 ```{r}
-# Generate boxplots for each variable except Date
+# Function to set colors for boxplots
 set_colors <- function(index) {
   colors <- c("lightgreen", "lightcoral", "lightpink", "lightyellow", "lightgrey", "lightblue")
   colors[(index %% length(colors)) + 1]
 }
 
+# Generate boxplots for each variable except Date
 boxplots <- lapply(seq_along(names(nflx_df)), function(i) {
   var <- names(nflx_df)[i]
   if (var != "Date") {
-    ggplot(nflx_df, aes_string(x = "factor(1)", y = var)) +
-      geom_boxplot(fill = set_colors(i), color = "black") +
+    ggplot(nflx_df, aes(x = factor(1), y = !!sym(var))) +
+      geom_boxplot(fill = set_colors(i), color = "white", outlier.color = "white") +
       labs(x = "", y = var) +
-      ggtitle(paste("Boxplot of", var))
+      ggtitle(paste("Boxplot of", var)) +
+      theme_minimal() +
+      theme(
+        plot.background = element_rect(fill = "black"),
+        plot.title = element_text(color = "white"),
+        axis.title = element_text(color = "white"),
+        axis.text = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        legend.title = element_text(color = "white"),
+        panel.grid.major = element_line(color = "grey30"),
+        panel.grid.minor = element_line(color = "grey30"),
+        panel.border = element_rect(color = "white", fill = NA),
+        axis.line = element_line(color = "white"),
+        axis.ticks = element_line(color = "white"))
   }
 })
 
+# Filter out NULL plots
 boxplots <- Filter(Negate(is.null), boxplots)
 
+# Print each plot
 for (plot in boxplots) {
   print(plot)
 }
@@ -93,7 +114,17 @@ histograms <- lapply(seq_along(names(nflx_df)), function(i) {
     ggplot(nflx_df, aes_string(x = var)) +
       geom_histogram(bins = 20, fill = set_colors(i), color = "black") +
       labs(x = var) +
-      ggtitle(paste("Histogram of", var))
+      ggtitle(paste("Histogram of", var)) +
+      theme_minimal() +
+      theme(
+        plot.background = element_rect(fill = "black"),
+        plot.title = element_text(color = "white"),
+        axis.title = element_text(color = "white"),
+        axis.text = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        legend.title = element_text(color = "white"),
+        panel.grid.major = element_line(color = "grey30"),
+        panel.grid.minor = element_line(color = "grey30"))
   }
 })
 
@@ -116,7 +147,17 @@ scatterplots <- lapply(seq_along(names(nflx_df)), function(i) {
     ggplot(nflx_df, aes_string(x = var, y = "Adj.Close")) +
       geom_point(color = set_color_scatter(i)) +
       labs(x = var, y = "Adj.Close") +
-      ggtitle(paste("Scatterplot of", var, "vs. Adj. Close"))
+      ggtitle(paste("Scatterplot of", var, "vs. Adj. Close")) +
+      theme_minimal() +
+      theme(
+        plot.background = element_rect(fill = "black"),
+        plot.title = element_text(color = "white"),
+        axis.title = element_text(color = "white"),
+        axis.text = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        legend.title = element_text(color = "white"),
+        panel.grid.major = element_line(color = "grey30"),
+        panel.grid.minor = element_line(color = "grey30"))
   }
 })
 
@@ -132,23 +173,36 @@ for (plot in scatterplots) {
 nflx_df <- nflx_df %>%
   mutate(Date = as.Date(Date))
 
-# Calculate a 21 day moving average
+# Calculate a 21 day moving average and exponential moving average
 # There are about 21 trading days per month
 nflx_df <- nflx_df %>%
   arrange(Date) %>%
-  mutate(MA_21 = SMA(Adj.Close, n = 21))
+  mutate(MA_21 = SMA(Adj.Close, n = 21),
+         EMA_21 = EMA(Adj.Close, n = 21))
 
-# Show the moving average
+# Create the plot
 ggplot(nflx_df, aes(x = Date)) +
   geom_line(aes(y = Adj.Close, color = "Adjusted Close"), size = 0.5) +
   geom_line(aes(y = MA_21, color = "21 Day Moving Average"), size = 1) +
-  scale_color_manual(values = c("Adjusted Close" = "blue", "21 Day Moving Average" = "red")) +
+  geom_line(aes(y = EMA_21, color = "21 Day Exponential Moving Average"), size = 1) +
+  scale_color_manual(values = c("Adjusted Close" = "blue", 
+                                "21 Day Moving Average" = "red", 
+                                "21 Day Exponential Moving Average" = "aquamarine")) +
   labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average",
        x = "Date",
        y = "Price",
        color = "Legend",
        caption = "Data source: nflx_df") +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
 ```
 
 ```{r}
@@ -165,7 +219,7 @@ ggplot(nflx_df, aes(x = Date)) +
   geom_bar(data = nflx_weekly, aes(x = Week, y = Weekly_Volume / 1000000, fill = "Weekly Volume"), 
            stat = "identity", alpha = 0.4, position = "identity") +
   scale_color_manual(values = c("Adjusted Close" = "blue", "21 Day Moving Average" = "red", "Volume" = "green")) +
-  scale_fill_manual(values = c("Weekly Volume" = "orange")) +
+  scale_fill_manual(values = c("Weekly Volume" = "purple")) +
   labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average and Volume",
        x = "Date",
        y = "Price",
@@ -173,9 +227,104 @@ ggplot(nflx_df, aes(x = Date)) +
        color = "Legend",
        caption = "Data source: nflx_df") +
   theme_minimal() +
-  scale_y_continuous(sec.axis = sec_axis(~.*1000000, name = "Volume"))
+  scale_y_continuous(sec.axis = sec_axis(~.*1000000, name = "Volume")) +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
 ```
 
+```{r}
+# Calculate Volume Moving Average
+nflx_df <- nflx_df %>%
+  mutate(Volume_MA_21 = SMA(Volume, n = 21))
+
+# Plot Volume with Moving Average
+ggplot(nflx_df, aes(x = as.Date(Date))) +
+  geom_line(aes(y = Volume / 1000000, color = "Volume"), size = 1, alpha = 0.4) +
+  geom_line(aes(y = Volume_MA_21 / 1000000, color = "21 Day Volume Moving Average"), size = 1) +
+  scale_color_manual(values = c("Volume" = "purple", "21 Day Volume Moving Average" = "red")) +
+  labs(title = "Netflix Volume with 20-Day Moving Average",
+       x = "Date",
+       y = "Volume (in millions)",
+       color = "Legend",
+       caption = "Data source: nflx_df") +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
+```
+
+```{r}
+# Calculate Bollinger Bands
+bollinger <- BBands(nflx_df$Adj.Close, n = 20)
+nflx_df <- nflx_df %>%
+  mutate(
+    BB_Upper = bollinger[, "up"],
+    BB_Middle = bollinger[, "mavg"],
+    BB_Lower = bollinger[, "dn"]
+  )
+
+# Create the plot
+ggplot(nflx_df, aes(x = Date)) +
+  geom_line(aes(y = Adj.Close, color = "Adjusted Close"), size = 1) +
+  geom_line(aes(y = BB_Upper, color = "Upper Band"), size = 1, linetype = "dashed") +
+  geom_line(aes(y = BB_Middle, color = "Middle Band"), size = 1) +
+  geom_line(aes(y = BB_Lower, color = "Lower Band"), size = 1, linetype = "dashed") +
+  scale_color_manual(values = c("Adjusted Close" = "blue", "Upper Band" = "red", "Middle Band" = "yellow", "Lower Band" = "green")) +
+  labs(title = "Netflix Bollinger Bands",
+       x = "Date",
+       y = "Price",
+       color = "Legend",
+       caption = "Data source: nflx_df") +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
+```
+
+```{r}
+# Calculate RSI
+nflx_df <- nflx_df %>%
+  mutate(RSI_14 = RSI(Adj.Close, n = 14))
+
+# Plot RSI
+ggplot(nflx_df, aes(x = as.Date(Date), y = RSI_14)) +
+  geom_line(color = "orange", size = 1) +
+  geom_hline(yintercept = 70, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = 30, linetype = "dashed", color = "red") +
+  labs(title = "Netflix RSI (14)",
+       x = "Date",
+       y = "RSI",
+       caption = "Data source: nflx_df") +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
+```
 
 ```{r}
 # Feature engineering: Extract Year, Month, Day from Date
@@ -189,8 +338,26 @@ nflx_df <- nflx_df %>%
   ) %>%
   select(-Date)
 
+# Check for missing values
+missing_data <- colSums(is.na(nflx_df))
+print(missing_data)
+
+# Remove rows with missing values
+nflx_df <- na.omit(nflx_df)
+```
+
+```{r}
 # Display the first few rows of the dataset
 head(nflx_df)
+```
+
+```{r}
+# Calculate correlation coefficients with Adj.Close
+correlations <- cor(nflx_df)
+
+# Print correlations compared to Adj.Close
+print("Correlation Coefficients compared to Adjusted Close")
+print(correlations["Adj.Close", ])
 ```
 
 ```{r}
@@ -204,18 +371,48 @@ corrplot(cor_matrix, method = "color", type = "upper",
          col = colorRampPalette(c("blue", "white", "red"))(200))
 ```
 
+```{r}
+# Separate the target variable
+target_variable <- 'Adj.Close'
+target <- nflx_df[[target_variable]]
+predictors <- nflx_df %>% select(-one_of(target_variable))
+
+# Normalize the target variable separately
+target_preprocess_params <- preProcess(as.data.frame(target), method = c("BoxCox", "center", "scale"))
+target_normalized <- predict(target_preprocess_params, as.data.frame(target))
+colnames(target_normalized) <- target_variable
+
+# Normalize/scale the predictors and apply PCA
+predictors_preprocess_params <- preProcess(predictors, method = c("BoxCox", "center", "scale", "pca"))
+predictors_normalized <- predict(predictors_preprocess_params, predictors)
+
+# Check if the predictors_normalized is null (should not be)
+if (is.null(predictors_normalized)) {
+  stop("predictors_normalized is NULL, check preprocessing steps.")
+}
+
+# Combine the normalized predictors with the normalized target variable
+nflx_df_normalized <- cbind(predictors_normalized, Adj.Close = target_normalized)
+
+# Display the first few rows of the combined dataframe
+nflx_df_normalized
+```
 
 ```{r}
-# Normalize/scale the data
-preprocess_params <- preProcess(nflx_df, method = c("center", "scale"))
-nflx_df_normalized <- predict(preprocess_params, nflx_df)
-
-# Verify the target variable
-target_variable <- 'Adj.Close'
-
-if (!(target_variable %in% names(nflx_df_normalized))) {
-  stop("The specified target variable does not exist in the dataset")
-}
+# Visualize the distribution of the normalized target variable
+ggplot(nflx_df_normalized, aes(x = `Adj.Close`)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  labs(title = "Distribution of Normalized Adj.Close", x = "Normalized Adj.Close", y = "Frequency") +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    axis.text = element_text(color = "white"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    panel.grid.major = element_line(color = "grey30"),
+    panel.grid.minor = element_line(color = "grey30"))
 ```
 
 ```{r}
@@ -302,8 +499,14 @@ for (plot in plots) {
 importance <- varImp(models$gbm$model, scale = FALSE)
 print(importance)
 plot(importance)
-
 ```
+
+```{r}
+# Extract loadings to understand original variable contributions to PCs
+loadings <- pca_result$rotation
+print(loadings)
+```
+
 
 ```{r}
 # Summary and conclusions
