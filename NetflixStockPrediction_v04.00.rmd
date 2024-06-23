@@ -24,6 +24,7 @@ library(tidyverse)
 library(TTR)
 library(quantmod)
 library(car)
+library(forecast)
 ```
 
 ```{r}
@@ -185,9 +186,9 @@ ggplot(nflx_df, aes(x = Date)) +
   geom_line(aes(y = Adj.Close, color = "Adjusted Close"), size = 0.5) +
   geom_line(aes(y = MA_21, color = "21 Day Moving Average"), size = 1) +
   geom_line(aes(y = EMA_21, color = "21 Day Exponential Moving Average"), size = 1) +
-  scale_color_manual(values = c("Adjusted Close" = "blue", 
+  scale_color_manual(values = c("Adjusted Close" = "chartreuse", 
                                 "21 Day Moving Average" = "red", 
-                                "21 Day Exponential Moving Average" = "aquamarine")) +
+                                "21 Day Exponential Moving Average" = "blue3")) +
   labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average",
        x = "Date",
        y = "Price",
@@ -218,8 +219,8 @@ ggplot(nflx_df, aes(x = Date)) +
   geom_line(aes(y = MA_21, color = "21 Day Moving Average"), size = 1) +
   geom_bar(data = nflx_weekly, aes(x = Week, y = Weekly_Volume / 1000000, fill = "Weekly Volume"), 
            stat = "identity", alpha = 0.4, position = "identity") +
-  scale_color_manual(values = c("Adjusted Close" = "blue", "21 Day Moving Average" = "red", "Volume" = "green")) +
-  scale_fill_manual(values = c("Weekly Volume" = "purple")) +
+  scale_color_manual(values = c("Adjusted Close" = "chartreuse", "21 Day Moving Average" = "red", "Volume" = "yellow")) +
+  scale_fill_manual(values = c("Weekly Volume" = "magenta")) +
   labs(title = "Netflix Adjusted Close Price with 21-Day Moving Average and Volume",
        x = "Date",
        y = "Price",
@@ -248,7 +249,7 @@ nflx_df <- nflx_df %>%
 ggplot(nflx_df, aes(x = as.Date(Date))) +
   geom_line(aes(y = Volume / 1000000, color = "Volume"), size = 1, alpha = 0.4) +
   geom_line(aes(y = Volume_MA_21 / 1000000, color = "21 Day Volume Moving Average"), size = 1) +
-  scale_color_manual(values = c("Volume" = "purple", "21 Day Volume Moving Average" = "red")) +
+  scale_color_manual(values = c("Volume" = "lightcyan", "21 Day Volume Moving Average" = "red")) +
   labs(title = "Netflix Volume with 20-Day Moving Average",
        x = "Date",
        y = "Volume (in millions)",
@@ -282,7 +283,7 @@ ggplot(nflx_df, aes(x = Date)) +
   geom_line(aes(y = BB_Upper, color = "Upper Band"), size = 1, linetype = "dashed") +
   geom_line(aes(y = BB_Middle, color = "Middle Band"), size = 1) +
   geom_line(aes(y = BB_Lower, color = "Lower Band"), size = 1, linetype = "dashed") +
-  scale_color_manual(values = c("Adjusted Close" = "blue", "Upper Band" = "red", "Middle Band" = "yellow", "Lower Band" = "green")) +
+  scale_color_manual(values = c("Adjusted Close" = "chartreuse", "Upper Band" = "bisque4", "Middle Band" = "blue", "Lower Band" = "azure")) +
   labs(title = "Netflix Bollinger Bands",
        x = "Date",
        y = "Price",
@@ -301,7 +302,7 @@ ggplot(nflx_df, aes(x = Date)) +
 ```
 
 ```{r}
-# Calculate RSI
+# Calculate relative strength index (RSI)
 nflx_df <- nflx_df %>%
   mutate(RSI_14 = RSI(Adj.Close, n = 14))
 
@@ -395,7 +396,7 @@ if (is.null(predictors_normalized)) {
 nflx_df_normalized <- cbind(predictors_normalized, Adj.Close = target_normalized)
 
 # Display the first few rows of the combined dataframe
-nflx_df_normalized
+head(nflx_df_normalized)
 ```
 
 ```{r}
@@ -503,8 +504,8 @@ plot(importance)
 
 ```{r}
 # Extract loadings to understand original variable contributions to PCs
-loadings <- pca_result$rotation
-print(loadings)
+pca_loadings <- predictors_preprocess_params$rotation
+print(pca_loadings)
 ```
 
 
